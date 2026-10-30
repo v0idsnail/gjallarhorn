@@ -35,6 +35,8 @@ cd web && python3 -m http.server 8377 --bind 127.0.0.1
 # open http://127.0.0.1:8377/
 ```
 
+Windows note: if `python3` is not found, use `py` instead (`py ops\fetcher.py --demo`).
+
 For real data, poll the primary feed (see [Data terms](#data-terms--attribution)
 first; they matter):
 
@@ -91,6 +93,10 @@ Generic adapters expect ISO-2 country codes; other country formats are
 dropped for that source (another source may fill the gap).
 
 ## Deployment
+No special hardware is needed. The Raspberry Pi Zero 2 is the smallest
+machine Gjallarhorn was designed against: it is the floor, not a requirement,
+so any laptop, desktop, or server works. Requirements are Python 3.7 or newer
+and any modern browser; nothing else installs.
 
 **Model A, single host (Pi, standalone):** the same box runs the fetcher on
 a timer and serves the page to a kiosk browser. Simplest; the host needs
