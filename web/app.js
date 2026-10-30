@@ -114,7 +114,18 @@
     pings.push({ x: xy[0], y: xy[1], t0: performance.now(), tier: tier, k: ev.k });
     shown++;
     counterEl.textContent = String(shown);
-    spawnCard(ev, tier, xy, extra);
+    // cluster discipline: suppress this card only when a nearby ping CARRIES
+    // a card (carded flag). Suppressing against cardless pings would chain
+    // and starve a busy region to zero cards; this way at most one card per
+    // region is live at a time, and a new one appears as each expires.
+    var near = false;
+    for (var i = 0; i < pings.length - 1; i++) {
+      if (!pings[i].carded) continue;
+      var ddx = pings[i].x - xy[0], ddy = pings[i].y - xy[1];
+      if (ddx * ddx + ddy * ddy < 55 * 55) { near = true; break; }
+    }
+    pings[pings.length - 1].carded = !near;
+    if (!near) spawnCard(ev, tier, xy, extra);
     addFeedRow(ev, tier);
   }
 
@@ -159,7 +170,7 @@
       var p = pings[i];
       var age = (now - p.t0) / PING_MS;
       if (age >= 1) {
-        decay.push({ x: p.x, y: p.y, tier: p.tier, t0: p.t0 });
+        decay.push({ x: p.x, y: p.y, tier: p.tier, t0: p.t0, k: p.k });
         if (decay.length > 800) decay.shift();
         decayDirty = true;
         pings.splice(i, 1);
@@ -292,7 +303,8 @@
     var dao = document.getElementById("data-as-of");
     if (dao && tN) dao.textContent = "DATA " + new Date(tN).toISOString().slice(0, 16).replace("T", " ") + "Z";
   }
-  var filling = false; // true during a large paced catch-up fill
+  var filling = false; // derived from fillPending: true during a paced catch-up fill
+  var fillPending = 0; // in-flight paced batches (overlapping polls extend fills)
   function ingest(arr) {
     EVENTS = arr;
     var tN = 0;
@@ -314,13 +326,17 @@
     // pace by concurrency, not total duration: at most ~100 simultaneous
     // pings regardless of snapshot size (Pi-friendly cold load). Small
     // catch-up batches drop in over ~250ms steps.
-    filling = fresh.length > 10;
-    var step = fresh.length <= 10 ? 250 : Math.max(30, Math.floor(PING_MS / 100));
+    fillPending += fresh.length > 10 ? 1 : 0;
+    filling = fillPending > 0;
+    var step = fresh.length <= 10 ? 250 : Math.max(250, Math.floor(PING_MS / 15));
     for (var n = 0; n < fresh.length; n++) {
       (function (ev, delay, last) {
         setTimeout(function () {
           spawnEvent(ev);
-          if (last) filling = false;
+          if (last) {
+            fillPending--;
+            filling = fillPending > 0;
+          }
         }, delay);
       })(fresh[n], n * step, n === fresh.length - 1);
     }
@@ -436,7 +452,16 @@
       var d2 = dx * dx + dy * dy;
       if (d2 < bd) { bd = d2; best = i; }
     }
-    if (best >= 0) openDetail(pings[best].k);
+    if (best >= 0) { openDetail(pings[best].k); return; }
+    // settled decay dots are clickable too: nearest marker within a tight
+    // tolerance (dots are small; stacked dots resolve to the nearest)
+    var dbest = -1, dbd = 12 * 12;
+    for (var j = 0; j < decay.length; j++) {
+      var ddx = decay[j].x - x, ddy = decay[j].y - y;
+      var dd2 = ddx * ddx + ddy * ddy;
+      if (dd2 < dbd) { dbd = dd2; dbest = j; }
+    }
+    if (dbest >= 0 && BY_KEY.has(decay[dbest].k)) openDetail(decay[dbest].k);
     else if (detail.classList.contains("open")) closeDetail();
   });
 
