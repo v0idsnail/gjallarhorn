@@ -262,9 +262,13 @@
     var extra = !filling && b >= 3 ? b : 0; // during a paced catch-up fill, arrival time is not burst signal
     if (ev.c && Object.prototype.hasOwnProperty.call(CENTROIDS, ev.c)) {
       var xy = project(CENTROIDS[ev.c][0], CENTROIDS[ev.c][1]);
-      // small deterministic jitter so same-country events don't stack
+      // small deterministic jitter so same-country events don't stack.
+      // Scaled 2026-10-30: at +-20/+-12 px (7.5/4.5 deg) a Danish event
+      // could land in Norway (the Femern bug); +-6/+-3 px keeps pings
+      // inside small countries while still separating stacked events.
       var h = 0; for (var q = 0; q < ev.k.length; q += 2) h = (h * 31 + ev.k.charCodeAt(q)) % 997;
-      xy[0] += (h % 40) - 20; xy[1] += ((h / 40 | 0) % 24) - 12;
+      xy[0] += Math.round(((h % 40) - 20) * 0.3);
+      xy[1] += Math.round((((h / 40 | 0) % 24) - 12) * 0.25);
       spawnPing(ev, tier, xy, extra);
     } else {
       unlocated.textContent = String((parseInt(unlocated.textContent, 10) || 0) + 1);
