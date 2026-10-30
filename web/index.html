@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<!--
+  Gjallarhorn — offline wall display for reported ransomware/leak-site
+  incidents (data: ransomware.live, criminal CLAIMS not verdicts).
+
+  SECURITY: this page is fully offline. CSP below allows only same-directory
+  scripts/styles and NOTHING else: no fetch, no images, no forms, no remote
+  origins; outbound framing is blocked by frame-src 'none'. Feed strings
+  render via textContent only. events.js is produced by ops/fetcher.py
+  (validated/sanitized) and is gitignored — never commit feed data.
+  Map dot geometry derived from NASA Blue Marble (public domain). Credit: NASA.
+
+  Run:   python3 ops/fetcher.py --demo      (from the repo root)
+         cd web && python3 -m http.server 8377 --bind 127.0.0.1
+         then open http://127.0.0.1:8377/ . Plain file:// may blank under
+  some browsers (opaque-origin CSP 'self' matching) — prefer the localhost
+  server; it also keeps any raw fixtures out of the web root.
+-->
+<meta http-equiv="Content-Security-Policy"
+      content="default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'none'; img-src 'none'; font-src 'none'; object-src 'none'; frame-src 'none'; base-uri 'none'; form-action 'none'">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>reported incidents — live display</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="wrap">
+  <canvas id="map"></canvas>
+
+  <div id="topbar">
+    <div><span id="live">LIVE</span>REPORTED INCIDENTS</div>
+    <div><span id="data-as-of"></span> · <span id="count">0</span> SHOWN THIS SWEEP</div>
+  </div>
+
+  <div id="cards"></div>
+
+  <div id="feed"></div>
+  <div id="detail"></div>
+
+  <div id="unlocated">
+    UNLOCATED<br><span class="num" id="unlocated-count">0</span><br>victims w/o country data
+  </div>
+
+  <div id="footer">
+    <div>source: <a href="https://www.ransomware.live" target="_blank" rel="noopener noreferrer">ransomware.live</a> aggregation of leak-site claims — attribution &amp; claims unverified</div>
+    <div>map geometry: courtesy NASA (Blue Marble) · country centroids: public reference data</div>
+  </div>
+</div>
+
+<script src="countries.js"></script>
+<script src="dots.js"></script>
+<script src="events.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

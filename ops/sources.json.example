@@ -1,0 +1,23 @@
+// Second-source adapter config for fetcher.py.
+// Copy to sources.json (gitignored) and adapt to your feed.
+// You are responsible for your API's terms, your key, and your account.
+// Key material NEVER goes in this file: set the env var named in auth_env.
+[
+  {
+    "name": "acme-ti",
+    "url": "https://api.example.com/v1/ransomware/victims",
+    "root": "victims",
+    "auth_header": "X-Api-Key",
+    "auth_env": "ACME_TI_API_KEY",
+    "priority": 2,
+    "map": {
+      "group": "actor_name",
+      "title": "victim",
+      "sector": "industry",
+      "country": "country_code",
+      "description": "summary",
+      "discovered": "first_seen",
+      "published": "announced"
+    }
+  }
+]

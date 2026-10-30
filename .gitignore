@@ -1,0 +1,8 @@
+# generated data — never commit feed data (also a ransomware.live T&C requirement)
+web/events.js
+ops/sources.json
+ops/fixtures/
+
+# python
+__pycache__/
+*.pyc

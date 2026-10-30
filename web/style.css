@@ -1,0 +1,124 @@
+/* cybermap — SOC-style wall display. Palette from reference screenshot. */
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+html, body {
+  height: 100%;
+  background: #0b1016;
+  color: #c7d3dc;
+  font-family: "DejaVu Sans Mono", "Liberation Mono", monospace;
+  overflow: hidden;
+}
+
+/* faint tactical grid over the whole page */
+body {
+  background-image:
+    linear-gradient(rgba(199, 211, 220, 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(199, 211, 220, 0.04) 1px, transparent 1px);
+  background-size: 48px 48px;
+}
+
+#wrap { position: relative; height: 100%; }
+
+#map { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+
+/* ---- top bar ---- */
+#topbar {
+  position: absolute; top: 0; left: 0; right: 0;
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 14px 22px;
+  font-size: 15px; letter-spacing: 2px;
+  pointer-events: none;
+  text-shadow: 0 0 8px rgba(0, 229, 255, 0.35);
+}
+#live {
+  border: 1px solid #ff3d00; color: #ff3d00;
+  padding: 2px 8px; margin-right: 10px; font-weight: bold;
+}
+#counter { color: #00e5ff; font-weight: bold; }
+
+/* ---- attack cards ---- */
+#cards { position: absolute; inset: 0; pointer-events: none; }
+.card {
+  position: absolute;
+  background: rgba(11, 16, 22, 0.92);
+  border: 1px solid #ff3d00;
+  border-left: 3px solid #ff3d00;
+  padding: 8px 12px;
+  min-width: 200px; max-width: 240px;
+  font-size: 12.5px; line-height: 1.5;
+  box-shadow: 0 0 14px rgba(255, 61, 0, 0.25);
+  transition: opacity 0.7s;
+  z-index: 5;
+}
+.card.tier2 { border-color: #00e5ff; border-left-color: #00e5ff; box-shadow: 0 0 12px rgba(0, 229, 255, 0.2); }
+.card.tier3 { border-color: #5b6b78; border-left-color: #5b6b78; box-shadow: none; opacity: 0.75; }
+.card .apt { color: #ff3d00; font-weight: bold; letter-spacing: 1px; }
+.card.tier2 .apt { color: #00e5ff; }
+.card .vic { color: #c7d3dc; font-weight: bold; }
+.card .loc { color: #5b6b78; }
+.card.fade { opacity: 0; }
+
+/* ---- feed panel ---- */
+#feed {
+  position: absolute; left: 22px; bottom: 46px;
+  width: 460px; max-height: 210px; overflow: hidden;
+  font-size: 12px; line-height: 1.7;
+}
+.frow { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.frow.tier1 .fg { color: #ff3d00; }
+.frow .fg { color: #00e5ff; font-weight: bold; }
+.frow.tier3 { opacity: 0.55; }
+.frow .ft { color: #c7d3dc; margin-left: 8px; }
+.frow .fc { color: #5b6b78; }
+
+/* ---- unlocated rail ---- */
+#unlocated {
+  position: absolute; right: 22px; bottom: 46px;
+  font-size: 12px; color: #5b6b78; text-align: right; line-height: 1.7;
+}
+#unlocated .num { color: #c7d3dc; font-size: 20px; font-weight: bold; }
+
+/* ---- footer ---- */
+#footer {
+  position: absolute; left: 0; right: 0; bottom: 0;
+  padding: 8px 22px;
+  display: flex; justify-content: space-between;
+  font-size: 10.5px; color: #3d4a55; letter-spacing: 0.5px;
+}
+
+/* ---- detail overlay (click ping / card / feed row) ---- */
+#detail {
+  position: absolute; top: 64px; right: 22px;
+  width: 430px; max-width: calc(100vw - 44px);
+  max-height: calc(100% - 170px);
+  overflow-y: auto;
+  background: rgba(11, 16, 22, 0.96);
+  border: 1px solid #00e5ff; border-left: 3px solid #00e5ff;
+  padding: 14px 18px 12px;
+  z-index: 9;
+  box-shadow: 0 0 18px rgba(0, 229, 255, 0.25);
+  opacity: 0; transform: translateX(18px);
+  transition: opacity 0.25s, transform 0.25s;
+  pointer-events: none;
+}
+#detail.open { opacity: 1; transform: none; pointer-events: auto; }
+.d-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+.d-head.tier1 .d-badge { border-color: #ff3d00; color: #ff3d00; }
+.d-head.tier2 .d-badge { border-color: #00e5ff; color: #00e5ff; }
+.d-head.tier3 .d-badge { border-color: #5b6b78; color: #5b6b78; }
+.d-badge { border: 1px solid #5b6b78; padding: 1px 7px; font-size: 10.5px; letter-spacing: 1.5px; color: #5b6b78; }
+.d-close { color: #3d4a55; font-size: 11px; cursor: pointer; letter-spacing: 1px; }
+.d-close:hover { color: #c7d3dc; }
+.d-title { color: #c7d3dc; font-weight: bold; font-size: 16px; margin-bottom: 10px; line-height: 1.4; }
+.d-meta { font-size: 12px; color: #c7d3dc; line-height: 1.8; }
+.d-meta .d-k { color: #5b6b78; letter-spacing: 1px; }
+.d-desc { margin-top: 12px; font-size: 12.5px; line-height: 1.65; color: #c7d3dc; border-top: 1px solid rgba(91, 107, 120, 0.4); padding-top: 10px; }
+.d-foot { margin-top: 12px; font-size: 10.5px; color: #3d4a55; letter-spacing: 0.5px; }
+
+/* clickable affordances */
+.card { cursor: pointer; pointer-events: auto; }
+.frow { cursor: pointer; }
+.frow:hover .ft, .frow:hover .fg { color: #fff; }
+#footer a { color: inherit; text-decoration: none; border-bottom: 1px dotted #3d4a55; }
+#footer a:hover { color: #c7d3dc; }
