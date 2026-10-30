@@ -6,11 +6,12 @@
   Gjallarhorn: offline wall display for reported ransomware/leak-site
   incidents (data: ransomware.live, criminal CLAIMS not verdicts).
 
-  SECURITY: this page is fully offline. CSP below allows only same-directory
-  scripts/styles and NOTHING else: no fetch, no images, no forms, no remote
-  origins; outbound framing is blocked by frame-src 'none'. Feed strings
-  render via textContent only. events.js is produced by ops/fetcher.py
-  (validated/sanitized) and is gitignored; never commit feed data.
+  SECURITY: no external origins, ever. CSP below allows only same-directory
+  scripts/styles plus same-origin events.json polling, NOTHING else: no
+  images, no forms, no remote origins; outbound framing is blocked by
+  frame-src 'none'. Feed strings render via textContent only.
+  events.js / events.json are produced by ops/fetcher.py (validated/
+  sanitized) and are gitignored; never commit feed data.
   Map dot geometry derived from NASA Blue Marble (public domain). Credit: NASA.
 
   Run:   python3 ops/fetcher.py --demo      (from the repo root)

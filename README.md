@@ -1,7 +1,7 @@
 # Gjallarhorn
 
 Zero-egress wall display for ransomware leak-site claims. The page never
-touches the network; corroborate events by bringing a second feed.
+touches an external network; corroborate events by bringing a second feed.
 
 ![screenshot](docs/screenshot.png)
 
@@ -15,9 +15,9 @@ rolling log and click-to-inspect detail on every event.
 - **Claims, not verdicts.** Ransomware crews post victims on leak sites as
   pressure tactics. Those posts are *criminal claims*. Gjallarhorn displays
   them as such: unverified, attributed to the crew that made the claim.
-- **A display, not a data product.** The page is a pure consumer of one
-  generated file (`web/events.js`). It makes zero network requests, enforced
-  by CSP, not by convention.
+- **A display, not a data product.** The page is a pure consumer of its own
+  generated files (`web/events.js`, `web/events.json`). It makes zero
+  external network requests, enforced by CSP, not by convention.
 - **Correlation-aware.** Run a second feed alongside the free primary and
   matching events merge into one corroborated entry; rival claims by
   different crews on the same victim stay separate.
@@ -197,8 +197,9 @@ with the default feed, and they are reasonable:
 
 - **Attribution with a link** on any display of the data (the built-in
   footer provides it, so keep it).
-- **Do not republish raw data** in any form. That is why `web/events.js` is
-  gitignored and must stay out of forks, screenshots aside.
+- **Do not republish raw data** in any form. That is why `web/events.js` and
+  `web/events.json` are gitignored and must stay out of forks, screenshots
+  aside.
 - **Do not re-serve their data as an API** or clone their site's look.
 - **No commercial use of the data** without written approval. This repo's
   MIT license covers *code only*; feeding a paid engagement with their data

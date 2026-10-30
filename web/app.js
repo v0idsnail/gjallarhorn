@@ -247,8 +247,7 @@
   // replay: the whole snapshot as one compressed timeline, then loop.
   // This is the demo mode: it always has something moving.
   function schedule() {
-    if (!EVENTS.length) return;
-    shown = 0; counterEl.textContent = "0"; unlocated.textContent = "0"; burstState = new Map(); // reset per sweep (audit F4)
+    shown = 0; counterEl.textContent = "0"; unlocated.textContent = "0"; burstState = new Map(); decay.length = 0; // reset per sweep (audit F4); live mode never clears the trail
     var times = EVENTS.map(function (e) {
       return Date.parse((e.di || e.pu).replace(" ", "T")) || 0;
     });
@@ -286,11 +285,12 @@
       if (t > tN) tN = t;
     }
     stampDataAge(tN);
-    // first fill paces over ~15s so 100 events do not land at once;
-    // later ticks drop their few new events straight in
+    // first fill paces across ~15s so a large dataset never lands at once;
+    // small catch-up batches drop in over ~250ms steps
     for (var n = 0; n < fresh.length; n++) {
       (function (ev, delay) { setTimeout(function () { spawnEvent(ev); }, delay); })(
-        fresh[n], n < 60 ? n * 250 : 0
+        fresh[n],
+        fresh.length <= 10 ? n * 250 : Math.floor(n * 15000 / fresh.length)
       );
     }
   }
@@ -413,8 +413,8 @@
   requestAnimationFrame(frame);
   if (MODE === "live") {
     fetch("events.json").then(function (r) { return r.json(); }).then(function (arr) {
-      FEED_CAP = 200;
       ingest(arr);
+      FEED_CAP = 200;
       setInterval(liveTick, POLL_MS);
     }).catch(function () {
       // no same-origin artifact or no fetch support: replay the snapshot

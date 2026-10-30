@@ -1,5 +1,6 @@
 # generated data: never commit feed data (also a ransomware.live T&C requirement)
 web/events.js
+web/events.json
 ops/sources.json
 ops/fixtures/
 
