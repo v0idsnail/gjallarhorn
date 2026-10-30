@@ -1,4 +1,4 @@
-/* app.js — Gjallarhorn display logic.
+/* app.js: Gjallarhorn display logic.
  *
  * SECURITY MODEL (review 2026-10-24):
  *  - This page makes ZERO network requests. CSP: default-src 'none',
@@ -11,7 +11,7 @@
  *  - Unknown-country events go to the Unlocated rail, never to 0,0.
  *
  * Map geometry: dot matrix derived by sampling NASA Blue Marble
- * (public domain) imagery — credit: Courtesy NASA.
+ * (public domain) imagery. Credit: Courtesy NASA.
  */
 
 (function () {
@@ -69,7 +69,7 @@
   }
 
   // static base map rendered ONCE per resize to an offscreen canvas, then
-  // blitted each frame — keeps per-frame cost ~zero (Pi Zero 2 friendly)
+  // blitted each frame, which keeps per-frame cost ~zero (Pi Zero 2 friendly)
   var baseCanvas = document.createElement("canvas");
 
   function resize() {
@@ -288,7 +288,7 @@
       detail.appendChild(p);
     }
     var foot = document.createElement("div"); foot.className = "d-foot";
-    foot.textContent = "claim by " + ev.g + " via leak-site aggregation \u2014 unverified";
+    foot.textContent = "claim by " + ev.g + " via leak-site aggregation (unverified)";
     detail.appendChild(foot);
     detail.classList.add("open");
     detail.scrollTop = 0;

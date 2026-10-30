@@ -15,9 +15,9 @@ Modes:
   --fixture FILE      primary-source offline mode (raw API-shaped JSON)
   --once              poll the live API once (PRO tier if the key env is set)
   --source NAME       poll only the named source (adapter testing)
-  (run from a systemd timer with jitter — never a fixed-interval cron)
+  (run from a systemd timer with jitter, never a fixed-interval cron)
 
-Second sources: a sources.json next to this script (ops/, gitignored — it
+Second sources: a sources.json next to this script (ops/, gitignored: it
 names paid-feed URLs and auth env vars) adds concurrent
 feeds that are correlated against the primary. Each entry:
 
@@ -45,7 +45,7 @@ terms; this tool only ever ships the adapter config, never their data.
 Correlation policy (merge):
   k            canonical hash of normalized (group, title): lowercase,
                punctuation stripped, legal suffixes (inc/ltd/gmbh/...)
-               dropped — "Acme Inc." and "acme incorporated" merge.
+               dropped, so "Acme Inc." and "acme incorporated" merge.
   g/t          reported by the highest-priority source covering the event
   a/c/d        first non-empty value in priority order (fill-down)
   di/pu        earliest valid timestamp across sources
@@ -53,7 +53,7 @@ Correlation policy (merge):
                len(s) > 1 = corroborated
 
 API tiers (ransomware.live, terms 2026-08-19): the anonymous v1 endpoint is
-DEPRECATED — personal use only, 1 req/min. Setting the RANSOMWARE_LIVE_API_KEY
+DEPRECATED: personal use only, 1 req/min. Setting the RANSOMWARE_LIVE_API_KEY
 environment variable (free key from my.ransomware.live) switches the primary
 to the PRO API (api-pro.ransomware.live/victims/recent, X-API-KEY header,
 free, 500k calls/month, fresher data). Data is cached 30 minutes upstream:
@@ -240,7 +240,7 @@ def transform(raw) -> list:
             }
         )
     # fail-closed guard (audit F2): a non-empty response that produced zero
-    # valid events is an attack or an API break — never blank the display
+    # valid events is an attack or an API break; never blank the display
     if raw and not out:
         raise ValueError("non-empty response yielded zero valid events; refusing to wipe")
     return out
