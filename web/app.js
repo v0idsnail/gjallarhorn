@@ -35,7 +35,7 @@
   // "__proto__" must not hit inherited Object.prototype keys (audit F1/F2)
   var TIER_A_SECTORS = new Set([
     "Healthcare", "Energy & Utilities", "Financial Services",
-    "Government", "Transportation"
+    "Government & Defense", "Transportation"
   ]);
   var BURST_WINDOW_MS = 60 * 60 * 1000; // rolling 1h per group (real time)
 
@@ -197,12 +197,12 @@
     return a.length;
   }
 
-  var TIMELINE_COMPRESS = 500;   // 1h of real time -> 7.2s of display
+  var TIMELINE_COMPRESS = 500;   // replaced per sweep by the real span ratio
   var REPLAY_MS = 240000;        // full sweep duration (4 min), then loop
 
   function schedule() {
     if (!EVENTS.length) return;
-    shown = 0; counterEl.textContent = "0"; burstState = new Map(); // reset per sweep (audit F4)
+    shown = 0; counterEl.textContent = "0"; unlocated.textContent = "0"; burstState = new Map(); // reset per sweep (audit F4)
     var times = EVENTS.map(function (e) {
       return Date.parse((e.di || e.pu).replace(" ", "T")) || 0;
     });
@@ -212,6 +212,9 @@
     if (dao) dao.textContent = "DATA " + new Date(tN).toISOString().slice(0, 16).replace("T", " ") + "Z";
     var span = Math.max(tN - t0, 1);
     var start = performance.now();
+    // real compression ratio for this dataset: keeps the burst window an
+    // honest 1h of event time regardless of span (was hardcoded 500)
+    TIMELINE_COMPRESS = span / (REPLAY_MS * 0.8);
     EVENTS.forEach(function (ev, idx) {
       var at = start + ((times[idx] - t0) / span) * (REPLAY_MS * 0.8);
       setTimeout(function () {
@@ -219,7 +222,7 @@
         var tier = classify(ev);
         var b = burstCount(ev.g, now);
         var extra = b >= 3 ? b : 0;
-        if (ev.c && CENTROIDS[ev.c]) {
+        if (ev.c && Object.prototype.hasOwnProperty.call(CENTROIDS, ev.c)) {
           var xy = project(CENTROIDS[ev.c][0], CENTROIDS[ev.c][1]);
           // small deterministic jitter so same-country events don't stack
           var h = 0; for (var q = 0; q < ev.k.length; q += 2) h = (h * 31 + ev.k.charCodeAt(q)) % 997;

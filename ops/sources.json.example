@@ -1,7 +1,3 @@
-// Second-source adapter config for fetcher.py.
-// Copy to sources.json (gitignored) and adapt to your feed.
-// You are responsible for your API's terms, your key, and your account.
-// Key material NEVER goes in this file: set the env var named in auth_env.
 [
   {
     "name": "acme-ti",

@@ -103,14 +103,28 @@ consumer of a file.
 
 Poll cadence: **never faster than every 30 minutes.** Ransomware.live caches
 its data for 30 minutes, and polling faster is a breach of their fair-use
-terms, not just wasted calls. Use a timer with jitter, not a fixed cron:
+terms, not just wasted calls. Use a timer with jitter, not a fixed cron.
+
+Companion units (the timer triggers the service; the service runs the fetcher):
 
 ```ini
+# /etc/systemd/system/gjallarhorn-fetch.service
+[Unit]
+Description=Gjallarhorn feed fetch
+
+[Service]
+Type=oneshot
+# export your key here if you use the PRO tier (or use an EnvironmentFile)
+ExecStart=/usr/bin/python3 /opt/gjallarhorn/ops/fetcher.py --once
+
 # /etc/systemd/system/gjallarhorn-fetch.timer
 [Timer]
 OnCalendar=*:0/30
 RandomizedDelaySec=300
 Persistent=true
+
+[Install]
+WantedBy=timers.target
 ```
 
 A 30-minute cadence uses ~1,440 of your free 500,000 monthly PRO calls. The
