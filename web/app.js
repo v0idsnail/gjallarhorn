@@ -255,6 +255,56 @@
   var TIMELINE_COMPRESS = 1;     // live: real time; replay: set per sweep
   var REPLAY_MS = 240000;        // replay sweep duration (4 min), then loop
 
+
+  // jitter half-extents per country in DEGREES [lat, lon], for countries
+  // large enough that a fixed small jitter would cluster every event on
+  // the centroid. Countries not listed get the small default below.
+  // Hand-checked mainland extents (Alaska/Hawaii excluded for US).
+  var JITTER_EXTENT = {
+    "US": [10.0, 24.0], "CA": [9.0, 20.0], "RU": [16.0, 34.0],
+    "CN": [12.0, 22.0], "BR": [12.0, 20.0], "AU": [11.0, 19.0],
+    "IN": [7.0, 11.0], "AR": [11.0, 12.0], "KZ": [7.0, 16.0],
+    "DZ": [7.0, 11.0], "CD": [8.0, 12.0], "SA": [7.0, 10.0],
+    "MX": [7.0, 10.0], "ID": [9.0, 16.0], "LY": [7.0, 11.0],
+    "IR": [7.0, 10.0], "MN": [6.0, 13.0], "ZA": [5.0, 6.0],
+    "EG": [4.5, 5.0], "TR": [3.5, 5.5], "UA": [3.0, 5.0],
+    "FR": [3.0, 4.0], "ES": [2.5, 4.0], "DE": [2.5, 3.5],
+    "SE": [4.5, 4.5], "FI": [4.0, 5.0], "NO": [4.5, 4.0],
+    "PL": [2.0, 3.0], "IT": [3.0, 3.0], "GB": [3.0, 2.5],
+    "JP": [4.5, 6.5], "TH": [4.0, 4.0], "MM": [4.5, 3.5],
+    "NZ": [3.5, 3.5], "VN": [5.5, 3.0], "PH": [5.0, 4.0],
+    "MY": [3.0, 4.0], "PK": [4.0, 4.0], "CO": [3.0, 5.0],
+    "PE": [4.0, 4.0], "BW": [3.0, 4.0], "KE": [3.0, 3.0]
+  };
+  var JITTER_DEFAULT = [1.1, 2.25]; // degrees [lat, lon]; small countries
+
+  function jitterFor(cc, h) {
+    var ext = Object.prototype.hasOwnProperty.call(JITTER_EXTENT, cc)
+      ? JITTER_EXTENT[cc] : JITTER_DEFAULT;
+    var fx = ((h % 40) - 19.5) / 20;             // -0.975..0.975
+    var fy = (((h / 40 | 0) % 24) - 11.5) / 12;  // -0.958..0.958
+    // degrees -> map px
+    return [fx * ext[1] * (960 / 360), fy * ext[0] * (480 / 180)];
+  }
+
+  // land clamp: lookup table from the dot matrix (cell centers are
+  // quantized to 5px grid positions, x=col*5+2, y=row*5+2)
+  var landSet = {};
+  for (var li = 0; li < dots.length; li++) {
+    landSet[dots[li][0] + "," + dots[li][1]] = true;
+  }
+
+  function onLand(x, y, tol) {
+    if (!dots.length) return true; // no matrix decoded: skip clamp
+    for (var cdx = -tol; cdx <= tol; cdx += 2) {
+      for (var cdy = -tol; cdy <= tol; cdy += 2) {
+        var lx = Math.round((x + cdx - 2) / 5) * 5 + 2;
+        var ly = Math.round((y + cdy - 2) / 5) * 5 + 2;
+        if (landSet[lx + "," + ly]) return true;
+      }
+    }
+    return false;
+  }
   function spawnEvent(ev) {
     var now = performance.now();
     var tier = classify(ev);
@@ -262,13 +312,18 @@
     var extra = !filling && b >= 3 ? b : 0; // during a paced catch-up fill, arrival time is not burst signal
     if (ev.c && Object.prototype.hasOwnProperty.call(CENTROIDS, ev.c)) {
       var xy = project(CENTROIDS[ev.c][0], CENTROIDS[ev.c][1]);
-      // small deterministic jitter so same-country events don't stack.
-      // Scaled 2026-10-30: at +-20/+-12 px (7.5/4.5 deg) a Danish event
-      // could land in Norway (the Femern bug); +-6/+-3 px keeps pings
-      // inside small countries while still separating stacked events.
+      // deterministic, country-size-aware jitter: large countries spread
+      // events across their extent, small countries stay precise (the
+      // Femern fix), and the result is clamped to the map's own landmass
+      // so a coastal spill pulls back to the shoreline.
       var h = 0; for (var q = 0; q < ev.k.length; q += 2) h = (h * 31 + ev.k.charCodeAt(q)) % 997;
-      xy[0] += Math.round(((h % 40) - 20) * 0.3);
-      xy[1] += Math.round((((h / 40 | 0) % 24) - 12) * 0.25);
+      var j = jitterFor(ev.c, h);
+      var jx = xy[0] + j[0], jy = xy[1] + j[1];
+      for (var halve = 0; halve < 3 && !onLand(jx, jy, 4); halve++) {
+        jx = xy[0] + (jx - xy[0]) / 2;
+        jy = xy[1] + (jy - xy[1]) / 2;
+      }
+      xy[0] = jx; xy[1] = jy;
       spawnPing(ev, tier, xy, extra);
     } else {
       unlocated.textContent = String((parseInt(unlocated.textContent, 10) || 0) + 1);
