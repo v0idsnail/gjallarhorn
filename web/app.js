@@ -1,13 +1,15 @@
 /* app.js: Gjallarhorn display logic.
  *
- * SECURITY MODEL (review 2026-10-24):
- *  - This page makes ZERO network requests. CSP: default-src 'none',
- *    connect-src 'none', img-src 'none'. No <a>/<img> is ever created from
- *    feed data; no URL field is even loaded into the artifact.
+ * SECURITY MODEL (review 2026-10-24, updated v1.1):
+ *  - The page makes ZERO external network requests. CSP: default-src 'none',
+ *    connect-src 'self' (live mode polls the same-origin events.json only),
+ *    img-src 'none'. No <a>/<img> is ever created from feed data; no URL
+ *    field is even loaded into the artifact.
  *  - ALL feed strings render via textContent/createTextNode only.
  *    Never innerHTML, never href/src/style/on* assignment.
- *  - events.js was produced by fetcher.py: type-gated, control/bidi/zero-width
- *    stripped, NFKC-normalized, length-capped, ascii-escaped JSON.
+ *  - events.js / events.json are produced by fetcher.py: type-gated,
+ *    control/bidi/zero-width stripped, NFKC-normalized, length-capped,
+ *    ascii-escaped JSON.
  *  - Unknown-country events go to the Unlocated rail, never to 0,0.
  *
  * Map geometry: dot matrix derived by sampling NASA Blue Marble
@@ -49,7 +51,9 @@
   var W = 960, H = 480;           // map coordinate space
   var scale = 1, ox = 0, oy = 0;  // canvas transform
   var pings = [];                 // active animations
+  var decay = [];                 // settled pings persisting as dim markers
   var shown = 0;
+  var FEED_CAP = 9;               // raised to 200 in live mode
 
   // ---- unpack dot matrix ----
   var dots = [];
@@ -143,7 +147,7 @@
     row.appendChild(g); row.appendChild(t); row.appendChild(c);
     row.addEventListener("click", function (e) { e.stopPropagation(); openDetail(ev.k); });
     feed.insertBefore(row, feed.firstChild);
-    while (feed.children.length > 9) feed.removeChild(feed.lastChild);
+    while (feed.children.length > FEED_CAP) feed.removeChild(feed.lastChild);
   }
 
   function drawPings(now) {
@@ -151,7 +155,12 @@
     for (var i = pings.length - 1; i >= 0; i--) {
       var p = pings[i];
       var age = (now - p.t0) / PING_MS;
-      if (age >= 1) { pings.splice(i, 1); continue; }
+      if (age >= 1) {
+        decay.push({ x: p.x, y: p.y, tier: p.tier, t0: p.t0 });
+        if (decay.length > 800) decay.shift();
+        pings.splice(i, 1);
+        continue;
+      }
       var col = p.tier === 1 ? RED : CYAN;
       var base = p.tier === 1 ? 3.2 : 2.2;
       // core glow
@@ -174,13 +183,31 @@
     }
   }
 
+  // settled events persist as small dim markers, fading across ~2h of wall
+  // time to a visible floor: the map accumulates a heat-trail of claims
+  function drawDecay(now) {
+    ctx.setTransform(scale, 0, 0, scale, ox, oy);
+    for (var i = 0; i < decay.length; i++) {
+      var d = decay[i];
+      var mins = (now - d.t0) / 60000;
+      var fade = Math.max(0.22, 1 - mins / 120);
+      ctx.globalAlpha = fade * (d.tier === 1 ? 0.85 : d.tier === 2 ? 0.55 : 0.30);
+      ctx.fillStyle = d.tier === 1 ? RED : d.tier === 2 ? CYAN : DIM;
+      ctx.beginPath();
+      ctx.arc(d.x, d.y, d.tier === 1 ? 1.8 : 1.4, 0, 6.2832);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+  }
+
   function frame(now) {
     drawBase();
+    drawDecay(now);
     drawPings(now);
     requestAnimationFrame(frame);
   }
 
-  // ---- event scheduling: compressed replay of the real timeline ----
+  // ---- event scheduling ----
   function classify(ev) {
     if (TIER_A_SECTORS.has(ev.a)) return 1;
     if (ev.d && ev.d.length >= 250 && ev.c) return 2;
@@ -197,9 +224,28 @@
     return a.length;
   }
 
-  var TIMELINE_COMPRESS = 500;   // replaced per sweep by the real span ratio
-  var REPLAY_MS = 240000;        // full sweep duration (4 min), then loop
+  var TIMELINE_COMPRESS = 1;     // live: real time; replay: set per sweep
+  var REPLAY_MS = 240000;        // replay sweep duration (4 min), then loop
 
+  function spawnEvent(ev) {
+    var now = performance.now();
+    var tier = classify(ev);
+    var b = burstCount(ev.g, now);
+    var extra = b >= 3 ? b : 0;
+    if (ev.c && Object.prototype.hasOwnProperty.call(CENTROIDS, ev.c)) {
+      var xy = project(CENTROIDS[ev.c][0], CENTROIDS[ev.c][1]);
+      // small deterministic jitter so same-country events don't stack
+      var h = 0; for (var q = 0; q < ev.k.length; q += 2) h = (h * 31 + ev.k.charCodeAt(q)) % 997;
+      xy[0] += (h % 40) - 20; xy[1] += ((h / 40 | 0) % 24) - 12;
+      spawnPing(ev, tier, xy, extra);
+    } else {
+      unlocated.textContent = String((parseInt(unlocated.textContent, 10) || 0) + 1);
+      addFeedRow(ev, tier); // visible + countable, never Null Island
+    }
+  }
+
+  // replay: the whole snapshot as one compressed timeline, then loop.
+  // This is the demo mode: it always has something moving.
   function schedule() {
     if (!EVENTS.length) return;
     shown = 0; counterEl.textContent = "0"; unlocated.textContent = "0"; burstState = new Map(); // reset per sweep (audit F4)
@@ -208,8 +254,7 @@
     });
     var t0 = Math.min.apply(null, times);
     var tN = Math.max.apply(null, times);
-    var dao = document.getElementById("data-as-of");
-    if (dao) dao.textContent = "DATA " + new Date(tN).toISOString().slice(0, 16).replace("T", " ") + "Z";
+    stampDataAge(tN);
     var span = Math.max(tN - t0, 1);
     var start = performance.now();
     // real compression ratio for this dataset: keeps the burst window an
@@ -217,25 +262,58 @@
     TIMELINE_COMPRESS = span / (REPLAY_MS * 0.8);
     EVENTS.forEach(function (ev, idx) {
       var at = start + ((times[idx] - t0) / span) * (REPLAY_MS * 0.8);
-      setTimeout(function () {
-        var now = performance.now();
-        var tier = classify(ev);
-        var b = burstCount(ev.g, now);
-        var extra = b >= 3 ? b : 0;
-        if (ev.c && Object.prototype.hasOwnProperty.call(CENTROIDS, ev.c)) {
-          var xy = project(CENTROIDS[ev.c][0], CENTROIDS[ev.c][1]);
-          // small deterministic jitter so same-country events don't stack
-          var h = 0; for (var q = 0; q < ev.k.length; q += 2) h = (h * 31 + ev.k.charCodeAt(q)) % 997;
-          xy[0] += (h % 40) - 20; xy[1] += ((h / 40 | 0) % 24) - 12;
-          spawnPing(ev, tier, xy, extra);
-        } else {
-          unlocated.textContent = String((parseInt(unlocated.textContent, 10) || 0) + 1);
-          addFeedRow(ev, tier); // visible + countable, never Null Island
-        }
-      }, at - start);
+      setTimeout(function () { spawnEvent(ev); }, at - start);
     });
     setTimeout(schedule, REPLAY_MS); // loop the sweep
   }
+
+  // live: poll the same-origin events.json, spawn only genuinely new
+  // events, never loop. This is the wall default.
+  var seen = new Set();
+  var POLL_MS = 60000;
+  function stampDataAge(tN) {
+    var dao = document.getElementById("data-as-of");
+    if (dao && tN) dao.textContent = "DATA " + new Date(tN).toISOString().slice(0, 16).replace("T", " ") + "Z";
+  }
+  function ingest(arr) {
+    EVENTS = arr;
+    var tN = 0;
+    var fresh = [];
+    for (var i = 0; i < arr.length; i++) {
+      BY_KEY.set(arr[i].k, arr[i]);
+      if (!seen.has(arr[i].k)) { seen.add(arr[i].k); fresh.push(arr[i]); }
+      var t = Date.parse((arr[i].di || arr[i].pu || "").replace(" ", "T")) || 0;
+      if (t > tN) tN = t;
+    }
+    stampDataAge(tN);
+    // first fill paces over ~15s so 100 events do not land at once;
+    // later ticks drop their few new events straight in
+    for (var n = 0; n < fresh.length; n++) {
+      (function (ev, delay) { setTimeout(function () { spawnEvent(ev); }, delay); })(
+        fresh[n], n < 60 ? n * 250 : 0
+      );
+    }
+  }
+  function liveTick() {
+    fetch("events.json").then(function (r) { return r.json(); })
+      .then(ingest)
+      .catch(function () { /* transient: keep last state, retry next tick */ });
+  }
+
+  // ---- mode selection ----
+  // ?replay / ?live force a mode. Default: synthetic demo data replays
+  // (it is a demo), real data runs live (wall behavior). If live cannot
+  // fetch (file://, missing artifact, old CSP), fall back to replay.
+  var MODE = (function () {
+    var q = (location.search || "").toLowerCase();
+    if (q.indexOf("replay") >= 0) return "replay";
+    if (q.indexOf("live") >= 0) return "live";
+    var demo = EVENTS.length > 0 && EVENTS.every(function (e) {
+      return e.s && e.s.length === 1 && e.s[0] === "demo";
+    });
+    return demo ? "replay" : "live";
+  })();
+
 
   // ---- detail overlay: shared drill-down for ping / card / feed-row clicks.
   // Same security rules as the rest of the page: textContent only, no
@@ -287,6 +365,11 @@
       detail.appendChild(metaLine("sources:", ev.s.join(" + ") + (ev.s.length > 1 ? " \u00b7 corroborated" : "")));
     }
     if (ev.d) {
+      var lbl = document.createElement("div"); lbl.className = "d-meta";
+      var ls = document.createElement("span"); ls.className = "d-k";
+      ls.textContent = "post text:";
+      lbl.appendChild(ls);
+      detail.appendChild(lbl);
       var p = document.createElement("p"); p.className = "d-desc"; p.textContent = ev.d;
       detail.appendChild(p);
     }
@@ -328,5 +411,17 @@
 
   resize();
   requestAnimationFrame(frame);
-  schedule();
+  if (MODE === "live") {
+    fetch("events.json").then(function (r) { return r.json(); }).then(function (arr) {
+      FEED_CAP = 200;
+      ingest(arr);
+      setInterval(liveTick, POLL_MS);
+    }).catch(function () {
+      // no same-origin artifact or no fetch support: replay the snapshot
+      MODE = "replay";
+      schedule();
+    });
+  } else {
+    schedule();
+  }
 })();

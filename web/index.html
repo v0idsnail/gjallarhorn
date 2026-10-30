@@ -20,7 +20,7 @@
   server; it also keeps any raw fixtures out of the web root.
 -->
 <meta http-equiv="Content-Security-Policy"
-      content="default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'none'; img-src 'none'; font-src 'none'; object-src 'none'; frame-src 'none'; base-uri 'none'; form-action 'none'">
+      content="default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'none'; font-src 'none'; object-src 'none'; frame-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>reported incidents · live display</title>
 <link rel="stylesheet" href="style.css">
@@ -31,7 +31,7 @@
 
   <div id="topbar">
     <div><span id="live">LIVE</span>REPORTED INCIDENTS</div>
-    <div><span id="data-as-of"></span> · <span id="count">0</span> SHOWN THIS SWEEP</div>
+    <div><span id="data-as-of"></span> · <span id="count">0</span> SHOWN</div>
   </div>
 
   <div id="cards"></div>
@@ -41,6 +41,12 @@
 
   <div id="unlocated">
     UNLOCATED<br><span class="num" id="unlocated-count">0</span><br>victims w/o country data
+  </div>
+
+  <div id="legend">
+    <span class="l1">tier 1</span> critical sector<br>
+    <span class="l2">tier 2</span> detailed claim<br>
+    <span class="l3">tier 3</span> ambient
   </div>
 
   <div id="footer">

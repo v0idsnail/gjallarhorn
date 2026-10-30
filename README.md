@@ -52,6 +52,32 @@ python3 ops/fetcher.py --once
 Click any log line, map card, or live ping for the detail overlay. `Esc`,
 click-outside, or 30 s idle dismisses it.
 
+## Understanding the display
+
+Two display modes, chosen automatically:
+
+- **Live** (default with real data): the page polls its own `events.json`
+  once a minute and spawns pings only for genuinely new events. Nothing
+  loops or repeats; every event fires once, its card fades after a few
+  seconds, and its location stays on the map as a small dimming marker, so
+  the world accumulates a heat-trail of claims. New fetcher output appears
+  within about a minute, no reload needed.
+- **Replay** (default for `--demo` data, or append `?replay` to the URL):
+  the whole snapshot plays as one compressed timeline and loops, so a
+  screen always has something moving. This is the demo and clip mode.
+  If the page cannot fetch (opened via `file://` or without `events.json`),
+   it falls back to replay automatically.
+
+Tiers (also shown in the on-screen legend):
+
+- **Tier 1, red:** critical sector (healthcare, energy, finance, government
+  and defense, transportation)
+- **Tier 2, cyan:** detailed claim text plus a country
+- **Tier 3, dimmed:** ambient volume of the feed
+
+Tiers are a triage heuristic (sector criticality, then claim substance), not
+a severity verdict: nobody can have that from a leak-site post.
+
 ## The event contract
 
 The entire display consumes one shape. Any producer that emits it works;
@@ -103,9 +129,9 @@ a timer and serves the page to a kiosk browser. Simplest; the host needs
 network egress.
 
 **Model B, split:** fetch on any always-on host with egress, serve on the
-display host with *zero* network dependency. Sync `web/events.js` over with
-scp/Syncthing/rsync and the display node can be fully offline, a read-only
-consumer of a file.
+display host with *zero* external network dependency. Sync `web/events.js`
+and `web/events.json` over with scp/Syncthing/rsync; live mode polls the
+local web root only, so the display node still talks to nobody.
 
 Poll cadence: **never faster than every 30 minutes.** Ransomware.live caches
 its data for 30 minutes, and polling faster is a breach of their fair-use
@@ -144,9 +170,11 @@ is event-driven. Nothing in the render loop allocates.
 
 The display treats all feed content as hostile input, because it is:
 
-- **Zero egress, enforced:** `Content-Security-Policy: default-src 'none';
-  script-src 'self'; style-src 'self'; connect-src 'none'; img-src 'none'`.
-  The page *cannot* fetch, frame, or load remote anything.
+- **Zero external egress, enforced:** `Content-Security-Policy: default-src
+  'none'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src
+  'none'`. The only network act the page can ever perform is fetching its
+  own same-origin `events.json`; it cannot reach any external origin, frame,
+  or load remote anything.
 - **textContent only:** no `innerHTML`, no `href`/`src`/`style` assignment
   from feed data, ever. Attacker-authored claim text renders inert by
   construction.

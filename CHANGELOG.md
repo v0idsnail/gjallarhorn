@@ -1,6 +1,21 @@
 # Changelog
 
-## v1.0.0
+## v1.1.0
+
+- Live display mode (default with real data): same-origin `events.json`
+  polling once a minute, append-only event spawning, no replay loop. New
+  fetcher output appears within about a minute, no page reload.
+- Decay trail: settled pings persist on the map as small dimming markers,
+  fading across ~2h to a visible floor.
+- Replay mode renamed for what it is (demo/clip mode): default for
+  `--demo` data, force with `?replay`, auto-fallback when fetch is
+  unavailable.
+- Scrollable persistent feed in live mode (200-row cap).
+- On-screen tier legend and "post text:" label in the detail overlay.
+- Fetcher writes `events.json` alongside `events.js` (both atomic).
+- CSP updated to `connect-src 'self'` (same-origin polling only; external
+  egress remains blocked).
+
 
 Initial release.
 

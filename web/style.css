@@ -62,7 +62,8 @@ body {
 /* ---- feed panel ---- */
 #feed {
   position: absolute; left: 22px; bottom: 46px;
-  width: 460px; max-height: 210px; overflow: hidden;
+  width: 460px; max-height: 32vh; overflow-y: auto;
+  scrollbar-width: thin; scrollbar-color: #2c3e50 transparent;
   font-size: 12px; line-height: 1.7;
 }
 .frow { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -122,3 +123,16 @@ body {
 .frow:hover .ft, .frow:hover .fg { color: #fff; }
 #footer a { color: inherit; text-decoration: none; border-bottom: 1px dotted #3d4a55; }
 #footer a:hover { color: #c7d3dc; }
+
+
+
+/* ---- tier legend ---- */
+#legend {
+  position: absolute; right: 22px; bottom: 132px;
+  font-size: 11px; color: #5b6b78; text-align: right; line-height: 1.8;
+  pointer-events: none;
+  letter-spacing: 0.5px;
+}
+#legend .l1 { color: #ff3d00; font-weight: bold; }
+#legend .l2 { color: #00e5ff; font-weight: bold; }
+#legend .l3 { color: #5b6b78; font-weight: bold; }

@@ -292,15 +292,19 @@ def merge(sources: list) -> list:
 
 def write_events_js(events: list, outdir: str) -> str:
     body = json.dumps(events, ensure_ascii=True, separators=(",", ":"))
+    write_atomic(os.path.join(outdir, "events.json"), body + "\n")
     payload = "window.EVENTS=" + body + ";\n"
-    fd, tmp = tempfile.mkstemp(dir=outdir, prefix=".events-", suffix=".js")
+    return write_atomic(os.path.join(outdir, "events.js"), payload)
+
+
+def write_atomic(dest: str, payload: str) -> str:
+    fd, tmp = tempfile.mkstemp(dir=os.path.dirname(dest), prefix=".events-", suffix=".tmp")
     try:
         with os.fdopen(fd, "w") as fh:
             fh.write(payload)
             fh.flush()
             os.fsync(fh.fileno())  # durability before the atomic rename (audit F6)
         os.chmod(tmp, 0o644)  # mkstemp gives 0600; server may run as another user
-        dest = os.path.join(outdir, "events.js")
         os.replace(tmp, dest)  # atomic
         return dest
     except BaseException:
