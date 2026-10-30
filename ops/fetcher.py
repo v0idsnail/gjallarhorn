@@ -93,7 +93,7 @@ MAX_RESPONSE_BYTES = 2 * 1024 * 1024
 MAX_EVENTS = 5000
 TS_MAX_FUTURE_S = 300          # allow 5min clock skew
 TS_MAX_AGE_S = 45 * 24 * 3600  # reject older-than-45d timestamps
-USER_AGENT = "Mozilla/5.0 (X11; Linux x86_64) gjallarhorn/1.0"  # generic
+USER_AGENT = "Mozilla/5.0 (X11; Linux x86_64) gjallarhorn/1.1.0"  # generic
 
 # API PRO tier (used when RANSOMWARE_LIVE_API_KEY is set): free token from
 # my.ransomware.live; X-API-KEY header; renames victims' field names.
@@ -262,7 +262,10 @@ def _ts(v: str) -> float:
     """Parse an ISO timestamp already validated by parse_ts to an instant."""
     import datetime
 
-    return datetime.datetime.fromisoformat(v.replace("Z", "+00:00")).timestamp()
+    # same fraction normalization as parse_ts: Python <3.11 fromisoformat
+    # rejects widths other than 3 or 6 digits
+    norm = re.sub(r"\.(\d+)", lambda m: "." + (m.group(1) + "000000")[:6], v)
+    return datetime.datetime.fromisoformat(norm.replace("Z", "+00:00")).timestamp()
 
 
 def merge(sources: list) -> list:
@@ -291,7 +294,9 @@ def merge(sources: list) -> list:
 
 
 def write_events_js(events: list, outdir: str) -> str:
-    body = json.dumps(events, ensure_ascii=True, separators=(",", ":"))
+    # "</" is escaped so a hostile post_title can never terminate the
+    # inline script block; JSON-legal, browser-invisible (JS string "<\/" === "</")
+    body = json.dumps(events, ensure_ascii=True, separators=(",", ":")).replace("</", "<\\/")
     write_atomic(os.path.join(outdir, "events.json"), body + "\n")
     payload = "window.EVENTS=" + body + ";\n"
     return write_atomic(os.path.join(outdir, "events.js"), payload)

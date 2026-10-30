@@ -86,7 +86,6 @@ class TestCanonAndMerge(unittest.TestCase):
         self.assertEqual(m["di"], "2026-10-21T00:00:00+00:00")  # earliest wins
 
     def test_rival_claims_stay_separate(self):
-        a = rec(post_title="Victim").copy()
         a = fetcher.transform([rec(post_title="Victim")])[0]
         b = fetcher.transform([rec(group_name="OtherCrew", post_title="Victim")])[0]
         self.assertNotEqual(a["k"], b["k"])
@@ -163,6 +162,56 @@ class TestDemo(unittest.TestCase):
         self.assertTrue(all(e["g"].startswith("DEMO") for e in evs))
         self.assertTrue(any(e["a"] == "Government & Defense" for e in evs))
         self.assertTrue(all("s" not in e for e in evs))  # s is added by merge()
+
+
+class TestArtifacts(unittest.TestCase):
+    def test_write_events_js_dual_artifacts_and_escape(self):
+        import shutil
+        import tempfile
+
+        d = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, d, True)
+        evs = fetcher.transform([rec(post_title="</script><script>x")])
+        dest = fetcher.write_events_js(evs, d)
+        self.assertTrue(dest.endswith("events.js"))
+        js = open(os.path.join(d, "events.js")).read()
+        jsn = open(os.path.join(d, "events.json")).read()
+        self.assertTrue(js.startswith("window.EVENTS="))
+        self.assertNotIn("</script", js)   # script terminator escaped
+        self.assertIn("<\\/script", js)    # escaped form present
+        self.assertEqual(
+            json.loads(js.split("=", 1)[1].rstrip(";\n")), json.loads(jsn)
+        )
+
+
+class TestParseTsWindow(unittest.TestCase):
+    def test_future_timestamp_dropped(self):
+        with self.assertRaises(ValueError):
+            fetcher.transform([rec(discovered="2027-01-01T00:00:00+00:00")])
+
+    def test_stale_timestamp_dropped(self):
+        with self.assertRaises(ValueError):
+            fetcher.transform([rec(discovered="2020-01-01T00:00:00+00:00")])
+
+
+class TestMapRawEdges(unittest.TestCase):
+    def test_root_key_unwrapped(self):
+        out = fetcher.map_raw({"victims": [{"g": "X", "t": "Y"}]},
+                              {"root": "victims", "inv": {"g": "group_name", "t": "post_title"}})
+        self.assertEqual(out[0]["group_name"], "X")
+
+    def test_missing_root_raises(self):
+        with self.assertRaises(ValueError):
+            fetcher.map_raw({"other": []}, {"root": "victims", "inv": {}})
+
+    def test_non_list_envelope_raises(self):
+        with self.assertRaises(ValueError):
+            fetcher.map_raw({"victims": "nope"}, {"inv": {}})
+
+    def test_wrong_typed_mapped_value_becomes_empty(self):
+        out = fetcher.map_raw([{"g": 5, "t": "Y"}],
+                              {"inv": {"g": "group_name", "t": "post_title"}})
+        self.assertEqual(out[0]["group_name"], "")
 
 
 if __name__ == "__main__":

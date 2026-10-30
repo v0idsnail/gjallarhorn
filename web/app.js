@@ -89,6 +89,9 @@
     oy = (box.height * dpr - H * scale) / 2;
     baseCanvas.width = canvas.width;
     baseCanvas.height = canvas.height;
+    decayCanvas.width = canvas.width;
+    decayCanvas.height = canvas.height;
+    decayDirty = true;
     var bctx = baseCanvas.getContext("2d");
     bctx.fillStyle = BG;
     bctx.fillRect(0, 0, baseCanvas.width, baseCanvas.height);
@@ -158,6 +161,7 @@
       if (age >= 1) {
         decay.push({ x: p.x, y: p.y, tier: p.tier, t0: p.t0 });
         if (decay.length > 800) decay.shift();
+        decayDirty = true;
         pings.splice(i, 1);
         continue;
       }
@@ -184,25 +188,38 @@
   }
 
   // settled events persist as small dim markers, fading across ~2h of wall
-  // time to a visible floor: the map accumulates a heat-trail of claims
-  function drawDecay(now) {
-    ctx.setTransform(scale, 0, 0, scale, ox, oy);
+  // time to a visible floor: the map accumulates a heat-trail of claims.
+  // Rendered to an offscreen layer refreshed ~1x/s (alpha drifts on a
+  // minutes scale), not per frame: 800 arcs/frame would pin a Pi Zero 2
+  // core forever; one drawImage per frame costs ~nothing.
+  var decayCanvas = document.createElement("canvas");
+  var decayDirty = true;
+  var decayLast = 0;
+
+  function renderDecayLayer(now) {
+    var dctx = decayCanvas.getContext("2d");
+    dctx.setTransform(1, 0, 0, 1, 0, 0);
+    dctx.clearRect(0, 0, decayCanvas.width, decayCanvas.height);
+    dctx.setTransform(scale, 0, 0, scale, ox, oy);
     for (var i = 0; i < decay.length; i++) {
       var d = decay[i];
       var mins = (now - d.t0) / 60000;
       var fade = Math.max(0.22, 1 - mins / 120);
-      ctx.globalAlpha = fade * (d.tier === 1 ? 0.85 : d.tier === 2 ? 0.55 : 0.30);
-      ctx.fillStyle = d.tier === 1 ? RED : d.tier === 2 ? CYAN : DIM;
-      ctx.beginPath();
-      ctx.arc(d.x, d.y, d.tier === 1 ? 1.8 : 1.4, 0, 6.2832);
-      ctx.fill();
+      dctx.globalAlpha = fade * (d.tier === 1 ? 0.85 : d.tier === 2 ? 0.55 : 0.30);
+      dctx.fillStyle = d.tier === 1 ? RED : d.tier === 2 ? CYAN : DIM;
+      dctx.beginPath();
+      dctx.arc(d.x, d.y, d.tier === 1 ? 1.8 : 1.4, 0, 6.2832);
+      dctx.fill();
     }
-    ctx.globalAlpha = 1;
+    dctx.globalAlpha = 1;
+    decayDirty = false;
+    decayLast = now;
   }
 
   function frame(now) {
+    if (decay.length && (decayDirty || now - decayLast > 1000)) renderDecayLayer(now);
     drawBase();
-    drawDecay(now);
+    ctx.drawImage(decayCanvas, 0, 0);
     drawPings(now);
     requestAnimationFrame(frame);
   }
@@ -231,7 +248,7 @@
     var now = performance.now();
     var tier = classify(ev);
     var b = burstCount(ev.g, now);
-    var extra = b >= 3 ? b : 0;
+    var extra = !filling && b >= 3 ? b : 0; // during a paced catch-up fill, arrival time is not burst signal
     if (ev.c && Object.prototype.hasOwnProperty.call(CENTROIDS, ev.c)) {
       var xy = project(CENTROIDS[ev.c][0], CENTROIDS[ev.c][1]);
       // small deterministic jitter so same-country events don't stack
@@ -247,6 +264,7 @@
   // replay: the whole snapshot as one compressed timeline, then loop.
   // This is the demo mode: it always has something moving.
   function schedule() {
+    if (!EVENTS.length) return; // Math.max.apply(null, []) is -Infinity; would throw below
     shown = 0; counterEl.textContent = "0"; unlocated.textContent = "0"; burstState = new Map(); decay.length = 0; // reset per sweep (audit F4); live mode never clears the trail
     var times = EVENTS.map(function (e) {
       return Date.parse((e.di || e.pu).replace(" ", "T")) || 0;
@@ -274,6 +292,7 @@
     var dao = document.getElementById("data-as-of");
     if (dao && tN) dao.textContent = "DATA " + new Date(tN).toISOString().slice(0, 16).replace("T", " ") + "Z";
   }
+  var filling = false; // true during a large paced catch-up fill
   function ingest(arr) {
     EVENTS = arr;
     var tN = 0;
@@ -285,17 +304,29 @@
       if (t > tN) tN = t;
     }
     stampDataAge(tN);
-    // first fill paces across ~15s so a large dataset never lands at once;
-    // small catch-up batches drop in over ~250ms steps
+    // prune lookup state to the current snapshot window: kiosk uptime is
+    // weeks, and dead entries (rotated-out events) would grow without bound
+    var win = new Set();
+    for (var w = 0; w < arr.length; w++) win.add(arr[w].k);
+    seen.forEach(function (k) { if (!win.has(k)) seen.delete(k); });
+    BY_KEY.forEach(function (v, k) { if (!win.has(k)) BY_KEY.delete(k); });
+    burstState.forEach(function (a, g) { if (!a.length) burstState.delete(g); });
+    // pace by concurrency, not total duration: at most ~100 simultaneous
+    // pings regardless of snapshot size (Pi-friendly cold load). Small
+    // catch-up batches drop in over ~250ms steps.
+    filling = fresh.length > 10;
+    var step = fresh.length <= 10 ? 250 : Math.max(30, Math.floor(PING_MS / 100));
     for (var n = 0; n < fresh.length; n++) {
-      (function (ev, delay) { setTimeout(function () { spawnEvent(ev); }, delay); })(
-        fresh[n],
-        fresh.length <= 10 ? n * 250 : Math.floor(n * 15000 / fresh.length)
-      );
+      (function (ev, delay, last) {
+        setTimeout(function () {
+          spawnEvent(ev);
+          if (last) filling = false;
+        }, delay);
+      })(fresh[n], n * step, n === fresh.length - 1);
     }
   }
   function liveTick() {
-    fetch("events.json").then(function (r) { return r.json(); })
+    fetch("events.json", { cache: "no-cache" }).then(function (r) { return r.json(); })
       .then(ingest)
       .catch(function () { /* transient: keep last state, retry next tick */ });
   }
@@ -412,12 +443,13 @@
   resize();
   requestAnimationFrame(frame);
   if (MODE === "live") {
-    fetch("events.json").then(function (r) { return r.json(); }).then(function (arr) {
+    fetch("events.json", { cache: "no-cache" }).then(function (r) { return r.json(); }).then(function (arr) {
+      FEED_CAP = 200; // before ingest: first fill must not trim to the replay cap
       ingest(arr);
-      FEED_CAP = 200;
       setInterval(liveTick, POLL_MS);
     }).catch(function () {
       // no same-origin artifact or no fetch support: replay the snapshot
+      FEED_CAP = 9; // undo the live cap so the fallback keeps replay semantics
       MODE = "replay";
       schedule();
     });

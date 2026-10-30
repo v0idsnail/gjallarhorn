@@ -159,12 +159,18 @@ Persistent=true
 WantedBy=timers.target
 ```
 
+Serving note: `python3 -m http.server` sends no cache headers, so browsers
+can briefly serve a stale `events.json` by heuristic freshness. The page
+already fetches with `cache: "no-cache"`; if you front it with nginx or
+another proxy, set `Cache-Control "no-cache"` for `events.json` so live
+mode stays live.
+
 A 30-minute cadence uses ~1,440 of your free 500,000 monthly PRO calls. The
 limit exists for harvesters, not for walls.
 
-The display targets Raspberry Pi Zero 2 class hardware: the world map is
-pre-rendered once to an offscreen canvas, pings are bounded, and the overlay
-is event-driven. Nothing in the render loop allocates.
+On that floor hardware the render loop stays cheap: the base map, the decay
+trail, and the ping layer are cached or bounded, and nothing in the frame
+path allocates per element.
 
 ## Security model
 

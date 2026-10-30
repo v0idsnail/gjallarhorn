@@ -16,6 +16,7 @@
 - CSP updated to `connect-src 'self'` (same-origin polling only; external
   egress remains blocked).
 
+## v1.0.0
 
 Initial release.
 
