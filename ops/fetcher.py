@@ -100,10 +100,9 @@ USER_AGENT = "Mozilla/5.0 (X11; Linux x86_64) gjallarhorn/1.1.0"  # generic
 PRO_API_URL = "https://api-pro.ransomware.live/victims/recent"
 PRO_KEY_ENV = "RANSOMWARE_LIVE_API_KEY"
 PRO_FIELD_MAP = {  # their field -> legacy record field (transform pipeline).
-    # NOTE: the PRO swagger does not list `description` (v1 has it). If the
-    # PRO payload omits it, it maps to "" silently: tier 2 becomes rare and
-    # the overlay shows no claim text. Verify against one live PRO payload
-    # once a key is registered; harmless to keep meanwhile.
+    # NOTE: verified against live PRO payload 2026-11-02: `description` is
+    # returned (96/100 non-empty) even though the PRO swagger does not list
+    # it. Tier-2 claim text renders normally; no special-casing needed.
     "group": "group_name",
     "victim": "post_title",
     "activity": "activity",
