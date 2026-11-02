@@ -128,7 +128,7 @@ body {
 
 /* ---- tier legend ---- */
 #legend {
-  position: absolute; right: 22px; bottom: 132px;
+  position: absolute; right: 22px; bottom: 45%;
   font-size: 11px; color: #5b6b78; text-align: right; line-height: 1.8;
   pointer-events: none;
   letter-spacing: 0.5px;
